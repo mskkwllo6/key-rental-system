@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鍵貸し出しシステム - 団体メンバー一覧</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>団体メンバー一覧</h1>
+      <nav>
+        <a href="/">ユーザー</a>
+        <a href="/org-members.html" class="active">団体メンバー</a>
+        <a href="/current-rentals.html">貸出状況</a>
+        <a href="/admin.html">管理者</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="filters">
+        <div class="card">
+          <h2>検索</h2>
+          <div class="filter-controls">
+            <input type="text" id="orgSearchInput" placeholder="団体名またはメンバー名で検索" autocomplete="off">
+            <button id="clearSearch" class="btn btn-secondary">クリア</button>
+            <button id="refreshMembers" class="btn btn-secondary">更新</button>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div id="orgMembersList" class="org-members-list">
+          <p class="loading">読み込み中...</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/org-members.js"></script>
+</body>
+</html>

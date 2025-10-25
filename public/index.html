@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鍵貸し出しシステム - ユーザー画面</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>サークル棟 鍵貸し出しシステム</h1>
+      <nav>
+        <a href="/" class="active">ユーザー</a>
+        <a href="/org-members.html">団体メンバー</a>
+        <a href="/current-rentals.html">貸出状況</a>
+        <a href="/admin.html">管理者</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="scan-section">
+        <h2>学生証をスキャンしてください</h2>
+        <div class="barcode-input-area">
+          <input
+            type="text"
+            id="barcodeInput"
+            placeholder="学籍番号を入力またはバーコードをスキャン"
+            autofocus
+            autocomplete="off"
+          >
+          <button id="scanButton" class="btn btn-primary">読み取り</button>
+        </div>
+        <p class="instruction">バーコードリーダーで学生証をスキャンするか、学籍番号を入力してください</p>
+      </section>
+
+      <section id="studentInfo" class="student-info hidden">
+        <h2>学生情報</h2>
+        <div class="info-card">
+          <div class="info-row">
+            <span class="label">学籍番号:</span>
+            <span id="displayStudentId"></span>
+          </div>
+          <div class="info-row">
+            <span class="label">氏名:</span>
+            <span id="displayName"></span>
+          </div>
+          <div class="info-row">
+            <span class="label">所属団体:</span>
+            <div id="organizationList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="orgSelection" class="org-selection hidden">
+        <h2>団体を選択してください</h2>
+        <div id="orgButtons" class="org-buttons"></div>
+      </section>
+
+      <section id="studentRentalsSection" class="student-rentals hidden">
+        <h2>この学生が貸出中の鍵</h2>
+        <div id="studentRentalsList" class="rentals-list student-rentals-list">
+          <p class="loading">現在借りている鍵はありません</p>
+        </div>
+      </section>
+
+      <section id="rentalTypeSelection" class="rental-type-selection hidden">
+        <!-- JavaScript で動的に生成 -->
+      </section>
+
+      <section id="practiceRoomSelection" class="practice-room-selection hidden">
+        <h2>練習場を選択してください</h2>
+        <div id="practiceRoomButtons" class="practice-room-buttons"></div>
+      </section>
+
+      <section id="storageSelection" class="storage-selection hidden">
+        <h2>倉庫を選択（任意）</h2>
+        <p class="instruction">必要な倉庫にチェックを入れてください（複数選択可）</p>
+        <div id="storageCheckboxes" class="storage-checkboxes"></div>
+      </section>
+
+      <section id="confirmSection" class="confirm-section hidden">
+        <h2>貸出確認</h2>
+        <div class="confirm-card">
+          <p>以下の内容で鍵を貸し出しますか?</p>
+          <div class="confirm-details">
+            <div id="confirmOrgName"></div>
+          </div>
+          <div class="button-group">
+            <button id="confirmButton" class="btn btn-success">確定</button>
+            <button id="cancelButton" class="btn btn-secondary">キャンセル</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="resultSection" class="result-section hidden">
+        <div class="result-card">
+          <div id="resultMessage"></div>
+          <button id="newScanButton" class="btn btn-primary">新しくスキャン</button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

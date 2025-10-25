@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鍵貸し出しシステム - 貸出状況</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>サークル棟 鍵貸し出しシステム</h1>
+      <nav>
+        <a href="/">ユーザー</a>
+        <a href="/org-members.html">団体メンバー</a>
+        <a href="/current-rentals.html" class="active">貸出状況</a>
+        <a href="/admin.html">管理者</a>
+      </nav>
+    </header>
+
+    <main>
+      <section>
+        <h2>部室の貸出状況</h2>
+        <div id="roomRentals" class="rentals-list">
+          <p class="loading">読み込み中...</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>練習場の貸出状況</h2>
+        <div id="practiceRentals" class="rentals-list">
+          <p class="loading">読み込み中...</p>
+        </div>
+      </section>
+
+      <section>
+        <h2>倉庫の貸出状況</h2>
+        <div id="storageRentals" class="rentals-list">
+          <p class="loading">読み込み中...</p>
+        </div>
+      </section>
+
+      <div class="button-group" style="justify-content: flex-end;">
+        <button id="refreshRentals" class="btn btn-secondary">更新</button>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/current-rentals.js"></script>
+</body>
+</html>

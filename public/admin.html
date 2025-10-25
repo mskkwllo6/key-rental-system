@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鍵貸し出しシステム - 管理者画面</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>鍵貸し出しシステム - 管理者画面</h1>
+      <nav>
+        <a href="/">ユーザー</a>
+        <a href="/org-members.html">団体メンバー</a>
+        <a href="/current-rentals.html">貸出状況</a>
+        <a href="/admin.html" class="active">管理者</a>
+      </nav>
+    </header>
+
+    <main class="admin-main">
+      <div class="tabs">
+        <button class="tab-button active" data-tab="csv-import">CSV一括登録</button>
+        <button class="tab-button" data-tab="organizations">団体管理</button>
+        <button class="tab-button" data-tab="current-rentals">貸出中</button>
+        <button class="tab-button" data-tab="history">貸出履歴</button>
+      </div>
+
+      <!-- CSV一括登録タブ -->
+      <section id="csv-import" class="tab-content active">
+        <h2>CSV一括登録</h2>
+        <div class="card">
+          <h3>学生・所属情報の一括登録</h3>
+          <p>CSVファイルから学生情報と所属団体を一括で登録できます。</p>
+
+          <div class="csv-format-info">
+            <h4>CSVフォーマット</h4>
+            <p>以下の列を含むCSVファイルを用意してください:</p>
+            <ul>
+              <li><strong>student_id</strong> (または 学籍番号): 学生の学籍番号</li>
+              <li><strong>name</strong> (または 氏名): 学生の氏名</li>
+              <li><strong>email</strong> (または メール): メールアドレス (任意)</li>
+              <li><strong>org_id</strong> (または 団体ID): 所属団体のID番号</li>
+              <li><strong>role</strong> (または 役職): 団体内の役職 (任意、デフォルト: 一般会員)</li>
+            </ul>
+            <p class="note">※団体IDは「団体管理」タブで確認できます</p>
+          </div>
+
+          <div class="file-upload">
+            <input type="file" id="csvFileInput" accept=".csv" class="file-input">
+            <label class="update-mode-label">
+              <input type="checkbox" id="updateMode">
+              更新モード（既存の団体メンバーを上書き）
+            </label>
+            <button id="uploadButton" class="btn btn-primary">CSVをアップロード</button>
+          </div>
+          <p class="form-hint">更新モード: 同じ団体IDの既存メンバーを削除してから新しいデータを登録します（年次更新に便利）</p>
+
+          <div id="uploadResult" class="upload-result hidden"></div>
+        </div>
+      </section>
+
+      <!-- 団体管理タブ -->
+      <section id="organizations" class="tab-content">
+        <h2>団体管理</h2>
+
+        <div class="card">
+          <h3>CSVで団体を登録</h3>
+          <p>団体名や部室情報をCSVファイルからまとめて登録できます。</p>
+
+          <div class="csv-format-info">
+            <h4>CSVフォーマット</h4>
+            <p>以下の列を含むCSVファイルを用意してください（ヘッダー推奨）:</p>
+            <ul>
+              <li><strong>org_id</strong> (任意): 団体ID。空欄の場合は自動採番</li>
+              <li><strong>org_name</strong>: 団体名（必須）</li>
+              <li><strong>room_number</strong> (任意): 部室番号</li>
+              <li><strong>can_use_practice_rooms</strong> (任意): 練習場利用可否（1/0, true/false 等）</li>
+              <li><strong>storage_ids</strong> (任意): 利用可能な倉庫IDをカンマ区切りで指定</li>
+            </ul>
+          </div>
+
+          <div class="file-upload">
+            <input type="file" id="orgCsvFileInput" accept=".csv" class="file-input">
+            <button id="orgCsvUploadButton" class="btn btn-primary" type="button">CSVをアップロード</button>
+          </div>
+          <div id="orgCsvUploadResult" class="upload-result hidden"></div>
+        </div>
+
+        <div class="card">
+          <h3 id="orgFormTitle">新しい団体を登録</h3>
+          <form id="addOrgForm" class="org-form">
+            <input type="hidden" id="editingOrgId" value="">
+            <div class="form-group">
+              <label for="orgId">団体ID（任意）:</label>
+              <input type="number" id="orgId" placeholder="空欄の場合は自動採番" min="1">
+              <small class="form-hint">削除した団体IDを再利用できます</small>
+            </div>
+            <div class="form-group">
+              <label for="orgName">団体名:</label>
+              <input type="text" id="orgName" required>
+            </div>
+            <div class="form-group">
+              <label for="roomNumber">部屋番号（任意）:</label>
+              <input type="text" id="roomNumber" placeholder="部室がない場合は空欄">
+            </div>
+            <div class="form-group">
+              <label>
+                <input type="checkbox" id="canUsePracticeRooms">
+                練習場を利用可能にする
+              </label>
+            </div>
+            <div class="form-group">
+              <label for="storageIds">割り当て倉庫:</label>
+              <div id="storageCheckboxes" class="storage-checkboxes">
+                <!-- 倉庫のチェックボックスがここに動的に追加されます -->
+              </div>
+              <small class="form-hint">この団体が利用できる倉庫を選択してください</small>
+            </div>
+            <div class="button-group">
+              <button type="submit" class="btn btn-primary" id="submitOrgButton">団体を追加</button>
+              <button type="button" class="btn btn-secondary hidden" id="cancelEditButton">キャンセル</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>登録済み団体一覧</h3>
+          <div id="orgList" class="org-list">
+            <p class="loading">読み込み中...</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 貸出中タブ -->
+      <section id="current-rentals" class="tab-content">
+        <h2>現在貸出中の鍵</h2>
+        <button id="refreshCurrentButton" class="btn btn-secondary">更新</button>
+        <div id="currentRentalsTable" class="rentals-table">
+          <p class="loading">読み込み中...</p>
+        </div>
+      </section>
+
+      <!-- 貸出履歴タブ -->
+      <section id="history" class="tab-content">
+        <h2>貸出履歴</h2>
+        <button id="refreshHistoryButton" class="btn btn-secondary">更新</button>
+        <div id="historyTable" class="rentals-table">
+          <p class="loading">読み込み中...</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>

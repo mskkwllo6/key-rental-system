@@ -1,0 +1,14 @@
+student_id,name,email,org_id,role
+S2401001,川合真岬,masaaki.kawai@example.com,1
+S2401002,錦健志,kenji.nishiki@example.com,1
+S2402001,土橋祐太,yuta.tsukahashi@example.com,2
+S2402002,保手田将悟,shogo.hoteda@example.com,2
+S2403001,田畑海登,kaito.tabata@example.com,3
+S2404001,山田太郎,yamada@example.com,4
+S2404002,佐藤花子,sato@example.com,4
+S2405001,内田光紀,teruki.uchida@example.com,5
+S2405002,大貫幹斗,mikito.onuki@example.com,5
+S2406001,畑ひかり,hikari.hata@example.com,6
+S2406002,伊藤美智子,miyazaki@example.com,6
+S2407001,山田花子,hanako.yamada@example.com,7
+S2407002,佐藤健太,kentaro.sato@example.com,7
