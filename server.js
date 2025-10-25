@@ -93,7 +93,7 @@ app.post('/api/borrow', (req, res) => {
     if (
       error.message.includes('貸出中') ||
       error.message.includes('学生情報が登録されていません') ||
-      error.message.includes('部屋または練習場を貸出中') ||
+      error.message.includes('部室または練習場を貸出中') ||
       error.message.includes('倉庫') ||
       error.message.includes('UNIQUE constraint failed')
     ) {
