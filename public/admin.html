@@ -87,6 +87,13 @@
           <div id="orgCsvUploadResult" class="upload-result hidden"></div>
         </div>
 
+        <div class="card danger-card">
+          <h3>団体・学生データの全削除</h3>
+          <p class="warning-text">団体と学生に関するデータ（所属・貸出履歴を含む）が全て削除されます。復元できないため、実行前に必ずバックアップを取得してください。</p>
+          <button id="resetDataButton" class="btn btn-danger" type="button">団体と学生を全て削除する</button>
+          <div id="resetResult" class="upload-result hidden"></div>
+        </div>
+
         <div class="card">
           <h3 id="orgFormTitle">新しい団体を登録</h3>
           <form id="addOrgForm" class="org-form">
@@ -152,6 +159,7 @@
     </main>
   </div>
 
+  <script src="/js/auth.js"></script>
   <script src="/js/admin.js"></script>
 </body>
 </html>

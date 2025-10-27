@@ -2,13 +2,15 @@
 
 let currentStudent = null;
 let selectedOrg = null;
-let rentalType = null; // 'room' または 'practice'
+let rentalType = null; // 'room' / 'practice' / 'print_room' / 'storage_only'
 let selectedRoom = null;
 let selectedPracticeRoom = null;
+let selectedPrintRoom = null;
 let selectedStorages = [];
 let selectedStorageNames = [];
 let practiceRooms = [];
 let storageRooms = [];
+let printRooms = [];
 let resourceUsage = {
   rooms: [],
   practiceRoomIds: [],
@@ -37,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 初期データ読み込み
   await loadPracticeRooms();
   await loadStorageRooms();
+  await loadPrintRooms();
   await loadCurrentRentals();
 });
 
@@ -57,6 +60,16 @@ async function loadStorageRooms() {
     storageRooms = await response.json();
   } catch (error) {
     console.error('倉庫取得エラー:', error);
+  }
+}
+
+// 印刷室一覧を取得
+async function loadPrintRooms() {
+  try {
+    const response = await fetch('/api/print-rooms');
+    printRooms = await response.json();
+  } catch (error) {
+    console.error('印刷室取得エラー:', error);
   }
 }
 
@@ -220,7 +233,7 @@ function updateOrganizationSummary() {
       const info = rentalInfoByOrg.get(org.org_id);
       return `
         <div class="org-summary">
-          <span>${org.org_name} (${org.role})</span>
+          <span>${org.org_name}</span>
           ${info ? `<span class="org-rental-info">貸出中: ${info}</span>` : ''}
         </div>
       `;
@@ -236,12 +249,25 @@ function displayOrganizationSelection() {
   currentStudent.organizations.forEach(org => {
     const button = document.createElement('button');
     button.className = 'org-button';
+    button.dataset.orgId = org.org_id;
+
+    // 既に選択されている団体の場合はselectedクラスを追加
+    if (selectedOrg && selectedOrg.org_id === org.org_id) {
+      button.classList.add('selected');
+    }
+
     button.innerHTML = `
       <div class="org-name">${org.org_name}</div>
       <div class="org-info">部室: ${org.room_number || 'なし'}</div>
       <div class="org-info">練習場利用: ${org.can_use_practice_rooms ? '可' : '不可'}</div>
     `;
-    button.addEventListener('click', () => selectOrganization(org));
+    button.addEventListener('click', () => {
+      // 他のボタンのselectedクラスを削除
+      document.querySelectorAll('.org-button').forEach(btn => btn.classList.remove('selected'));
+      // クリックされたボタンにselectedクラスを追加
+      button.classList.add('selected');
+      selectOrganization(org);
+    });
     orgButtons.appendChild(button);
   });
 
@@ -270,35 +296,55 @@ function renderStudentRentals() {
     const practiceItem = items.find(item => item.item_type === 'practice_room');
     const practiceName = practiceItem ? practiceItem.practice_room_name : rental.practice_room_name;
 
-    let location = '';
-    if (rental.rental_type === 'room') {
-      location = `部室: ${rental.room_number}`;
-    } else if (rental.rental_type === 'practice') {
-      location = `練習場: ${practiceName || '選択済み'}`;
-    } else if (rental.rental_type === 'storage_only') {
-      location = '倉庫のみ';
-    } else {
-      location = practiceName ? `練習場: ${practiceName}` : '貸出';
-    }
-
     const storageNames = items
       .filter(item => item.item_type === 'storage')
       .map(item => item.storage_name)
       .join(', ');
 
+    const printItem = items.find(item => item.item_type === 'print_room');
+    const printRoomName = printItem ? printItem.print_room_name : null;
+
+    let location = '';
+    if (rental.rental_type === 'room') {
+      location = `部室: ${rental.room_number}`;
+    } else if (rental.rental_type === 'practice') {
+      location = `練習場: ${practiceName || '選択済み'}`;
+    } else if (rental.rental_type === 'print_room') {
+      location = `印刷室: ${printRoomName || '印刷室'}`;
+    } else if (rental.rental_type === 'storage_only') {
+      // 倉庫のみの場合は倉庫名を表示（「倉庫のみ」という文言は表示しない）
+      location = storageNames ? `倉庫: ${storageNames}` : '';
+    } else {
+      location = practiceName ? `練習場: ${practiceName}` : '貸出';
+    }
+
+    // アイテムが2個以上の場合は「全て返却」ボタンを表示
+    // アイテムが0個の場合も「全て返却」ボタンを表示（旧データ対応）
+    // アイテムが1個の場合は個別返却ボタンのみ表示
+    const showReturnAllButton = items.length !== 1;
+
     const itemButtonHtml = items.length > 0
       ? `
         <div class="item-buttons">
           ${items.map(item => {
-            const itemName = item.item_type === 'practice_room'
-              ? item.practice_room_name
-              : item.storage_name;
-            const displayName = itemName || (item.item_type === 'storage' ? '倉庫' : 'アイテム');
+            let itemName;
+            if (item.item_type === 'room') {
+              itemName = `部室 ${item.room_number}`;
+            } else if (item.item_type === 'practice_room') {
+              itemName = item.practice_room_name;
+            } else if (item.item_type === 'print_room') {
+              itemName = item.print_room_name || '印刷室';
+            } else if (item.item_type === 'storage') {
+              itemName = item.storage_name;
+            } else {
+              itemName = 'アイテム';
+            }
+            const displayName = itemName || 'アイテム';
             const safeName = displayName.replace(/'/g, "\\'");
             const label = displayName;
             return `
               <button class="btn btn-secondary btn-small" onclick="handleReturnItem(${item.item_id}, '${safeName}')">
-                ${label}返却
+                ${label}を返却
               </button>
             `;
           }).join('')}
@@ -306,22 +352,36 @@ function renderStudentRentals() {
       `
       : '';
 
+    const returnAllButtonHtml = showReturnAllButton
+      ? `<button class="btn btn-success btn-small" onclick="handleReturn(${rental.log_id})">全て返却</button>`
+      : '';
+
+    // storage_onlyの場合は既にlocationに倉庫名が含まれているので重複表示しない
+    const shouldShowStorageNames = storageNames && rental.rental_type !== 'storage_only';
+
     return `
       <div class="rental-item student-rental-item ${isSelectedOrg ? 'highlight' : ''}">
         <div class="rental-info">
           <strong>${rental.org_name}</strong><br>
-          ${location}${storageNames ? `<br>倉庫: ${storageNames}` : ''}<br>
+          ${location}${shouldShowStorageNames ? `<br>倉庫: ${storageNames}` : ''}<br>
           貸出時刻: ${new Date(rental.borrowed_at).toLocaleString('ja-JP')}
         </div>
         <div class="rental-actions">
-          <button class="btn btn-success btn-small" onclick="handleReturn(${rental.log_id})">全て返却</button>
+          ${returnAllButtonHtml}
           ${itemButtonHtml}
         </div>
       </div>
     `;
   });
 
-  list.innerHTML = cards.join('');
+  // 複数の貸出がある場合は、全て一括返却するボタンを追加
+  const allReturnButtonHtml = currentStudentRentals.length > 1
+    ? `<div class="button-group" style="margin-top: 10px;">
+         <button class="btn btn-primary" onclick="handleReturnAll()">全ての貸出を返却</button>
+       </div>`
+    : '';
+
+  list.innerHTML = cards.join('') + allReturnButtonHtml;
   section.classList.remove('hidden');
   updateOrganizationSummary();
 }
@@ -406,7 +466,7 @@ function renderRentalTypeSelection() {
     const availableCount = orgStorageIds.filter((id) => !resourceUsage.storageIds.includes(id)).length;
     const storageUnavailable = availableCount === 0;
     storageOnlyBtn.innerHTML = `
-      <h3>倉庫のみ</h3>
+      <h3>倉庫</h3>
       <p>${storageUnavailable ? '利用できる倉庫はありません' : '倉庫だけを借りる'}</p>
       ${storageUnavailable ? '<p class="status-badge">貸出中</p>' : ''}
     `;
@@ -418,6 +478,16 @@ function renderRentalTypeSelection() {
     }
     typeButtons.appendChild(storageOnlyBtn);
   }
+
+  // 印刷室ボタン（誰でも借りられる）
+  const printRoomBtn = document.createElement('button');
+  printRoomBtn.className = 'type-button';
+  printRoomBtn.dataset.type = 'print_room';
+  printRoomBtn.innerHTML = `
+    <h3>印刷室</h3>
+  `;
+  printRoomBtn.addEventListener('click', () => selectRentalType('print_room'));
+  typeButtons.appendChild(printRoomBtn);
 
   typeButtons.querySelectorAll('.type-button').forEach(button => {
     button.classList.remove('active');
@@ -439,8 +509,21 @@ function selectRentalType(type) {
   rentalType = type;
   selectedRoom = null;
   selectedPracticeRoom = null;
+  selectedPrintRoom = null;
   selectedStorages = [];
   selectedStorageNames = [];
+
+  // 全てのtype-buttonからactiveクラスを削除
+  document.querySelectorAll('.type-button').forEach(btn => {
+    btn.classList.remove('active');
+  });
+
+  // クリックされたボタンにactiveクラスを追加
+  document.querySelectorAll('.type-button').forEach(btn => {
+    if (btn.dataset.type === type && !btn.disabled) {
+      btn.classList.add('active');
+    }
+  });
 
   const practiceSection = document.getElementById('practiceRoomSelection');
   const storageSection = document.getElementById('storageSelection');
@@ -457,6 +540,12 @@ function selectRentalType(type) {
     showPracticeRoomSelection();
   } else if (type === 'storage_only') {
     showStorageSelection();
+  } else if (type === 'print_room') {
+    // 印刷室は1つしかないので直接設定
+    if (printRooms.length > 0) {
+      selectedPrintRoom = printRooms[0].print_room_id;
+    }
+    showConfirmation();
   }
 }
 
@@ -738,6 +827,7 @@ async function handleConfirmBorrow() {
         rentalType: rentalType,
         roomNumber: selectedRoom,
         practiceRoomId: selectedPracticeRoom,
+        printRoomId: selectedPrintRoom,
         storageIds: selectedStorages
       })
     });
@@ -751,6 +841,9 @@ async function handleConfirmBorrow() {
       } else if (rentalType === 'practice') {
         const room = practiceRooms.find(r => r.room_id === selectedPracticeRoom);
         rentalDesc = room ? `練習場: ${room.room_name}` : '練習場';
+      } else if (rentalType === 'print_room') {
+        const printRoom = printRooms.find(r => r.print_room_id === selectedPrintRoom);
+        rentalDesc = printRoom ? `印刷室: ${printRoom.print_room_name}` : '印刷室';
       } else if (rentalType === 'storage_only') {
         const names = selectedStorageNames.length > 0
           ? selectedStorageNames
@@ -931,6 +1024,44 @@ async function handleReturn(logId) {
       await loadCurrentRentals();
     } else {
       alert(data.error || '返却に失敗しました');
+    }
+  } catch (error) {
+    console.error('エラー:', error);
+    alert('サーバーとの通信に失敗しました');
+  }
+}
+
+// 全ての貸出を一括返却
+async function handleReturnAll() {
+  if (!currentStudentRentals || currentStudentRentals.length === 0) {
+    return;
+  }
+
+  if (!confirm('全ての貸出を返却しますか?')) {
+    return;
+  }
+
+  try {
+    // 全ての貸出ログIDを取得
+    const logIds = currentStudentRentals.map(rental => rental.log_id);
+
+    // 並列で全ての返却処理を実行
+    const promises = logIds.map(logId =>
+      fetch(`/api/return/${logId}`, { method: 'POST' })
+        .then(response => response.json())
+    );
+
+    const results = await Promise.all(promises);
+
+    // 全て成功したか確認
+    const allSuccess = results.every(result => result.success);
+
+    if (allSuccess) {
+      alert('全ての貸出を返却しました');
+      await loadCurrentRentals();
+    } else {
+      alert('一部の返却に失敗しました');
+      await loadCurrentRentals();
     }
   } catch (error) {
     console.error('エラー:', error);

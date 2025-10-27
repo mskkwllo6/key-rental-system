@@ -1,4 +1,4 @@
-student_id,name,email,org_id,role
+student_id,name,email,org_id
 S2401001,川合真岬,masaaki.kawai@example.com,1
 S2401002,錦健志,kenji.nishiki@example.com,1
 S2402001,土橋祐太,yuta.tsukahashi@example.com,2
@@ -12,3 +12,4 @@ S2406001,畑ひかり,hikari.hata@example.com,6
 S2406002,伊藤美智子,miyazaki@example.com,6
 S2407001,山田花子,hanako.yamada@example.com,7
 S2407002,佐藤健太,kentaro.sato@example.com,7
+S2401001,川合真岬,masaaki.kawai@example.com,8

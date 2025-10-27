@@ -98,6 +98,7 @@ function initDatabase() {
       UNIQUE(student_id, org_id)
     )
   `);
+  ensureColumn('memberships', 'role', "TEXT DEFAULT '一般会員'");
 
   // 練習場テーブル
   db.exec(`
@@ -116,6 +117,14 @@ function initDatabase() {
     )
   `);
 
+  // 印刷室テーブル
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS print_rooms (
+      print_room_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      print_room_name TEXT NOT NULL UNIQUE
+    )
+  `);
+
   // 貸出履歴テーブル（拡張版）
   db.exec(`
     CREATE TABLE IF NOT EXISTS rental_logs (
@@ -125,22 +134,22 @@ function initDatabase() {
       rental_type TEXT NOT NULL,
       room_number TEXT,
       practice_room_id INTEGER,
+      print_room_id INTEGER,
       storage_ids TEXT,
       borrowed_at TEXT NOT NULL,
       returned_at TEXT,
       status TEXT DEFAULT '貸出中',
       FOREIGN KEY (student_id) REFERENCES students(student_id),
       FOREIGN KEY (org_id) REFERENCES organizations(org_id),
-      FOREIGN KEY (practice_room_id) REFERENCES practice_rooms(room_id)
+      FOREIGN KEY (practice_room_id) REFERENCES practice_rooms(room_id),
+      FOREIGN KEY (print_room_id) REFERENCES print_rooms(print_room_id)
     )
   `);
-
-  resolveDuplicateActiveRentals();
 
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_rental_logs_student_room_practice
     ON rental_logs(student_id)
-    WHERE status = '貸出中' AND rental_type IN ('room', 'practice')
+    WHERE status = '貸出中' AND rental_type IN ('room', 'practice', 'print_room')
   `);
 
   db.exec(`
@@ -149,11 +158,12 @@ function initDatabase() {
     WHERE status = '貸出中' AND rental_type = 'storage_only'
   `);
   ensureColumn('rental_logs', 'practice_room_id', 'INTEGER');
+  ensureColumn('rental_logs', 'print_room_id', 'INTEGER');
   ensureColumn('rental_logs', 'storage_ids', 'TEXT');
   ensureColumn('rental_logs', 'returned_at', 'TEXT');
   ensureColumn('rental_logs', 'status', "TEXT DEFAULT '貸出中'");
 
-  // 個別貸出テーブル（練習場・倉庫を個別返却可能にするため）
+  // 個別貸出テーブル（練習場・倉庫・部屋・印刷室を個別返却可能にするため）
   db.exec(`
     CREATE TABLE IF NOT EXISTS rental_items (
       item_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -161,14 +171,21 @@ function initDatabase() {
       item_type TEXT NOT NULL,
       practice_room_id INTEGER,
       storage_id INTEGER,
+      room_number TEXT,
+      print_room_id INTEGER,
       borrowed_at TEXT NOT NULL,
       returned_at TEXT,
       status TEXT DEFAULT '貸出中',
       FOREIGN KEY (rental_log_id) REFERENCES rental_logs(log_id) ON DELETE CASCADE,
       FOREIGN KEY (practice_room_id) REFERENCES practice_rooms(room_id),
-      FOREIGN KEY (storage_id) REFERENCES storage_rooms(storage_id)
+      FOREIGN KEY (storage_id) REFERENCES storage_rooms(storage_id),
+      FOREIGN KEY (print_room_id) REFERENCES print_rooms(print_room_id)
     )
   `);
+  ensureColumn('rental_items', 'room_number', 'TEXT');
+  ensureColumn('rental_items', 'print_room_id', 'INTEGER');
+
+  resolveDuplicateActiveRentals();
 
   // 練習場の初期データを登録
   const practiceRooms = [];
@@ -219,6 +236,13 @@ function initDatabase() {
     insertStorage.run(storage);
   }
 
+  // 印刷室の初期データを登録
+  const printRooms = ['印刷室'];
+  const insertPrintRoom = db.prepare('INSERT OR IGNORE INTO print_rooms (print_room_name) VALUES (?)');
+  for (const room of printRooms) {
+    insertPrintRoom.run(room);
+  }
+
   console.log('データベースを初期化しました');
 }
 
@@ -233,8 +257,7 @@ function getStudentByBarcode(studentId) {
       o.org_name,
       o.room_number,
       o.can_use_practice_rooms,
-      o.storage_ids,
-      m.role
+      o.storage_ids
     FROM students s
     JOIN memberships m ON s.student_id = m.student_id
     JOIN organizations o ON m.org_id = o.org_id
@@ -243,8 +266,8 @@ function getStudentByBarcode(studentId) {
   return stmt.all(studentId);
 }
 
-// 鍵貸出処理（部屋または練習場）
-function borrowKey(studentId, orgId, rentalType, roomNumber = null, practiceRoomId = null, storageIds = []) {
+// 鍵貸出処理（部屋、練習場、印刷室）
+function borrowKey(studentId, orgId, rentalType, roomNumber = null, practiceRoomId = null, printRoomId = null, storageIds = []) {
   const normalizedStorageIds = Array.isArray(storageIds)
     ? storageIds
         .map((id) => parseInt(id, 10))
@@ -288,6 +311,15 @@ function borrowKey(studentId, orgId, rentalType, roomNumber = null, practiceRoom
       LIMIT 1
     `).get(storageId);
 
+  const isPrintRoomInUse = (printRoomId) =>
+    db.prepare(`
+      SELECT 1 FROM rental_logs
+      WHERE rental_type = 'print_room'
+        AND print_room_id = ?
+        AND status = '貸出中'
+      LIMIT 1
+    `).get(printRoomId);
+
   const activeRentals = db.prepare(`
     SELECT rental_type
     FROM rental_logs
@@ -299,16 +331,33 @@ function borrowKey(studentId, orgId, rentalType, roomNumber = null, practiceRoom
     (rental) => rental.rental_type === 'room' || rental.rental_type === 'practice'
   );
 
+  const hasActivePrintRoom = activeRentals.some((rental) => rental.rental_type === 'print_room');
+
+  // 印刷室は他のどの部屋とも同時に借りられない
+  if (rentalType === 'print_room') {
+    if (activeRentals.length > 0) {
+      throw new Error('印刷室は他の部屋と同時に借りることができません。返却後に再度操作してください');
+    }
+  }
+
+  // 印刷室を借りている場合は他の部屋を借りられない
+  if (hasActivePrintRoom && rentalType !== 'print_room') {
+    throw new Error('印刷室を返却してから他の部屋を借りてください');
+  }
+
   if ((rentalType === 'room' || rentalType === 'practice') && hasActiveRoomOrPractice) {
     throw new Error('既に部屋または練習場を貸出中です。返却後に再度操作してください');
   }
 
   const hasActiveStorageOnly = activeRentals.some((rental) => rental.rental_type === 'storage_only');
-  if (
-    rentalType === 'storage_only' &&
-    (hasActiveRoomOrPractice || hasActiveStorageOnly)
-  ) {
-    throw new Error('倉庫のみの貸出は1つまでです');
+
+  // storage_onlyを借りようとする場合のチェック
+  if (rentalType === 'storage_only') {
+    // 既にstorage_onlyを借りている場合はエラー
+    if (hasActiveStorageOnly) {
+      throw new Error('倉庫のみの貸出は1つまでです');
+    }
+    // 部室や練習場を借りている場合でも、追加で倉庫を借りることは可能
   }
 
   if (rentalType === 'room' && roomNumber && isRoomInUse(roomNumber)) {
@@ -327,25 +376,47 @@ function borrowKey(studentId, orgId, rentalType, roomNumber = null, practiceRoom
     }
   }
 
+  if (rentalType === 'print_room' && printRoomId && isPrintRoomInUse(printRoomId)) {
+    throw new Error('印刷室は既に貸出中です');
+  }
+
   const transaction = db.transaction(() => {
     // メインの貸出ログを作成
     const stmt = db.prepare(`
       INSERT INTO rental_logs (
-        student_id, org_id, rental_type, room_number, practice_room_id,
+        student_id, org_id, rental_type, room_number, practice_room_id, print_room_id,
         storage_ids, borrowed_at, status
       )
-      VALUES (?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), '貸出中')
+      VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'), '貸出中')
     `);
-    const result = stmt.run(studentId, orgId, rentalType, roomNumber, practiceRoomId, storageIdsJson);
+    const result = stmt.run(studentId, orgId, rentalType, roomNumber, practiceRoomId, printRoomId, storageIdsJson);
     const rentalLogId = result.lastInsertRowid;
 
-    // 練習場を個別アイテムとして登録（部屋の場合は登録しない）
+    // 部屋を個別アイテムとして登録
+    if (rentalType === 'room' && roomNumber) {
+      const roomItemStmt = db.prepare(`
+        INSERT INTO rental_items (rental_log_id, item_type, room_number, borrowed_at, status)
+        VALUES (?, 'room', ?, datetime('now', 'localtime'), '貸出中')
+      `);
+      roomItemStmt.run(rentalLogId, roomNumber);
+    }
+
+    // 練習場を個別アイテムとして登録
     if (rentalType === 'practice' && practiceRoomId) {
       const itemStmt = db.prepare(`
         INSERT INTO rental_items (rental_log_id, item_type, practice_room_id, borrowed_at, status)
         VALUES (?, 'practice_room', ?, datetime('now', 'localtime'), '貸出中')
       `);
       itemStmt.run(rentalLogId, practiceRoomId);
+    }
+
+    // 印刷室を個別アイテムとして登録
+    if (rentalType === 'print_room' && printRoomId) {
+      const printRoomItemStmt = db.prepare(`
+        INSERT INTO rental_items (rental_log_id, item_type, print_room_id, borrowed_at, status)
+        VALUES (?, 'print_room', ?, datetime('now', 'localtime'), '貸出中')
+      `);
+      printRoomItemStmt.run(rentalLogId, printRoomId);
     }
 
     // 倉庫を個別アイテムとして登録
@@ -390,13 +461,45 @@ function returnKey(logId) {
 
 // 個別アイテム返却処理
 function returnItem(itemId) {
-  const stmt = db.prepare(`
-    UPDATE rental_items
-    SET returned_at = datetime('now', 'localtime'),
-        status = '返却済み'
-    WHERE item_id = ?
-  `);
-  return stmt.run(itemId);
+  const transaction = db.transaction(() => {
+    // アイテムを返却済みに
+    const updateItemStmt = db.prepare(`
+      UPDATE rental_items
+      SET returned_at = datetime('now', 'localtime'),
+          status = '返却済み'
+      WHERE item_id = ?
+    `);
+    updateItemStmt.run(itemId);
+
+    // このアイテムが属する貸出ログIDを取得
+    const getRentalLogStmt = db.prepare(`
+      SELECT rental_log_id FROM rental_items WHERE item_id = ?
+    `);
+    const item = getRentalLogStmt.get(itemId);
+
+    if (item) {
+      // この貸出ログに紐づく貸出中のアイテムがあるか確認
+      const remainingItemsStmt = db.prepare(`
+        SELECT COUNT(*) as count
+        FROM rental_items
+        WHERE rental_log_id = ? AND status = '貸出中'
+      `);
+      const remaining = remainingItemsStmt.get(item.rental_log_id);
+
+      // すべてのアイテムが返却済みなら、貸出ログも返却済みに
+      if (remaining && remaining.count === 0) {
+        const updateLogStmt = db.prepare(`
+          UPDATE rental_logs
+          SET returned_at = datetime('now', 'localtime'),
+              status = '返却済み'
+          WHERE log_id = ?
+        `);
+        updateLogStmt.run(item.rental_log_id);
+      }
+    }
+  });
+
+  return transaction();
 }
 
 // 貸出中の個別アイテムを取得
@@ -407,15 +510,26 @@ function getRentalItems(rentalLogId) {
       ri.item_type,
       ri.practice_room_id,
       ri.storage_id,
+      ri.print_room_id,
+      ri.room_number,
       ri.borrowed_at,
       ri.status,
       pr.room_name as practice_room_name,
-      sr.storage_name
+      sr.storage_name,
+      ptr.print_room_name
     FROM rental_items ri
     LEFT JOIN practice_rooms pr ON ri.practice_room_id = pr.room_id
     LEFT JOIN storage_rooms sr ON ri.storage_id = sr.storage_id
+    LEFT JOIN print_rooms ptr ON ri.print_room_id = ptr.print_room_id
     WHERE ri.rental_log_id = ? AND ri.status = '貸出中'
-    ORDER BY ri.item_type, ri.item_id
+    ORDER BY
+      CASE ri.item_type
+        WHEN 'room' THEN 1
+        WHEN 'practice_room' THEN 2
+        WHEN 'print_room' THEN 3
+        WHEN 'storage' THEN 4
+      END,
+      ri.item_id
   `);
   return stmt.all(rentalLogId);
 }
@@ -428,10 +542,12 @@ function getCurrentRentals() {
       r.student_id,
       s.name,
       o.org_name,
+      o.org_id,
       r.rental_type,
       r.room_number,
       r.practice_room_id,
       p.room_name as practice_room_name,
+      p.room_type as practice_room_type,
       r.storage_ids,
       r.borrowed_at
     FROM rental_logs r
@@ -487,8 +603,7 @@ function getOrganizationMembers(orgId = null) {
       o.storage_ids,
       s.student_id,
       s.name,
-      s.email,
-      m.role
+      s.email
     FROM organizations o
     LEFT JOIN memberships m ON o.org_id = m.org_id
     LEFT JOIN students s ON m.student_id = s.student_id
@@ -686,6 +801,12 @@ function getAllStorageRooms() {
   return stmt.all();
 }
 
+// 印刷室一覧取得
+function getAllPrintRooms() {
+  const stmt = db.prepare('SELECT * FROM print_rooms ORDER BY print_room_id');
+  return stmt.all();
+}
+
 // 現在貸出中の資源状況
 function getCurrentResourceUsage() {
   const rooms = db
@@ -731,22 +852,53 @@ function getCurrentResourceUsage() {
 // CSVから学生データ一括登録（更新対応）
 function importStudentsFromCSV(students, updateMode = false, targetOrgId = null) {
   const transaction = db.transaction((students, updateMode, targetOrgId) => {
-    // 更新モードの場合、対象団体の既存メンバーシップを削除
     if (updateMode && targetOrgId) {
       const deleteMemberships = db.prepare('DELETE FROM memberships WHERE org_id = ?');
       deleteMemberships.run(targetOrgId);
     }
 
-    const insertStudent = db.prepare('INSERT OR REPLACE INTO students (student_id, name, email) VALUES (?, ?, ?)');
-    const insertMembership = db.prepare('INSERT OR IGNORE INTO memberships (student_id, org_id, role) VALUES (?, ?, ?)');
+    const upsertStudent = db.prepare(`
+      INSERT INTO students (student_id, name, email)
+      VALUES (?, ?, ?)
+      ON CONFLICT(student_id) DO UPDATE SET
+        name = excluded.name,
+        email = excluded.email
+    `);
+
+    const upsertMembership = db.prepare(`
+      INSERT INTO memberships (student_id, org_id, role)
+      VALUES (?, ?, ?)
+      ON CONFLICT(student_id, org_id) DO UPDATE SET
+        role = excluded.role
+    `);
 
     for (const student of students) {
-      insertStudent.run(student.student_id, student.name, student.email || null);
-      insertMembership.run(student.student_id, student.org_id, student.role || '一般会員');
+      upsertStudent.run(student.student_id, student.name, student.email || null);
+      upsertMembership.run(
+        student.student_id,
+        student.org_id,
+        student.role || '一般会員'
+      );
     }
   });
 
   return transaction(students, updateMode, targetOrgId);
+}
+
+function resetOrganizationsAndStudents() {
+  const transaction = db.transaction(() => {
+    db.exec('DELETE FROM rental_items');
+    db.exec('DELETE FROM rental_logs');
+    db.exec('DELETE FROM memberships');
+    db.exec('DELETE FROM students');
+    db.exec('DELETE FROM organizations');
+    db.exec(`
+      DELETE FROM sqlite_sequence
+      WHERE name IN ('rental_items', 'rental_logs', 'memberships', 'students', 'organizations')
+    `);
+  });
+
+  transaction();
 }
 
 module.exports = {
@@ -766,7 +918,9 @@ module.exports = {
   deleteOrganization,
   getAllPracticeRooms,
   getAllStorageRooms,
+  getAllPrintRooms,
   getCurrentResourceUsage,
   importStudentsFromCSV,
+  resetOrganizationsAndStudents,
   db
 };

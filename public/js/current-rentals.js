@@ -1,5 +1,11 @@
 const roomList = document.getElementById('roomRentals');
-const practiceList = document.getElementById('practiceRentals');
+const musicList = document.getElementById('musicRentals');
+const jointList = document.getElementById('jointRentals');
+const meetingList = document.getElementById('meetingRentals');
+const groupList = document.getElementById('groupRentals');
+const hallList = document.getElementById('hallRentals');
+const japaneseList = document.getElementById('japaneseRentals');
+const rooftopList = document.getElementById('rooftopRentals');
 const storageList = document.getElementById('storageRentals');
 const refreshButton = document.getElementById('refreshRentals');
 
@@ -10,7 +16,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadCurrentRentalsOverview() {
   setLoading(roomList);
-  setLoading(practiceList);
+  setLoading(musicList);
+  setLoading(jointList);
+  setLoading(meetingList);
+  setLoading(groupList);
+  setLoading(hallList);
+  setLoading(japaneseList);
+  setLoading(rooftopList);
   setLoading(storageList);
 
   try {
@@ -31,12 +43,18 @@ async function loadCurrentRentalsOverview() {
     }));
 
     renderRoomRentals(rentals, itemsMap);
-    renderPracticeRentals(rentals, itemsMap);
+    renderPracticeRentalsByCategory(rentals, itemsMap);
     renderStorageRentals(rentals, itemsMap);
   } catch (error) {
     console.error('貸出状況取得エラー:', error);
     setError(roomList);
-    setError(practiceList);
+    setError(musicList);
+    setError(jointList);
+    setError(meetingList);
+    setError(groupList);
+    setError(hallList);
+    setError(japaneseList);
+    setError(rooftopList);
     setError(storageList);
   }
 }
@@ -64,27 +82,56 @@ function renderRoomRentals(rentals, itemsMap) {
   }).join('');
 }
 
-function renderPracticeRentals(rentals, itemsMap) {
+function renderPracticeRentalsByCategory(rentals, itemsMap) {
   const practiceRentals = rentals.filter(rental => rental.rental_type === 'practice');
-  if (practiceRentals.length === 0) {
-    practiceList.innerHTML = '<p class="loading">貸出中の練習場はありません</p>';
-    return;
-  }
 
-  practiceList.innerHTML = practiceRentals.map(rental => {
-    const items = itemsMap.get(rental.log_id) || [];
-    const storageNames = items.filter(item => item.item_type === 'storage').map(item => item.storage_name || '倉庫').join(', ');
-    return `
-      <div class="rental-item">
-        <div class="rental-info">
-          <strong>${rental.practice_room_name || '練習場'}</strong> (${rental.org_name})<br>
-          ${rental.name} (${rental.student_id})<br>
-          貸出時刻: ${formatDate(rental.borrowed_at)}
-          ${storageNames ? `<br>倉庫: ${storageNames}` : ''}
-        </div>
-      </div>
-    `;
-  }).join('');
+  // カテゴリ別に分類
+  const categories = {
+    music: { list: musicList, rentals: [] },
+    joint: { list: jointList, rentals: [] },
+    meeting: { list: meetingList, rentals: [] },
+    group: { list: groupList, rentals: [] },
+    hall: { list: hallList, rentals: [] },
+    japanese: { list: japaneseList, rentals: [] },
+    rooftop: { list: rooftopList, rentals: [] }
+  };
+
+  // 各練習場をカテゴリに振り分け
+  practiceRentals.forEach(rental => {
+    const roomType = rental.practice_room_type;
+    if (categories[roomType]) {
+      categories[roomType].rentals.push(rental);
+    }
+  });
+
+  // 各カテゴリを表示
+  Object.values(categories).forEach(category => {
+    if (category.rentals.length === 0) {
+      category.list.innerHTML = '<p class="loading">貸出中はありません</p>';
+    } else {
+      // 練習場名で昇順にソート（数字を考慮した自然順ソート）
+      category.rentals.sort((a, b) => {
+        const nameA = a.practice_room_name || '';
+        const nameB = b.practice_room_name || '';
+        return nameA.localeCompare(nameB, 'ja', { numeric: true });
+      });
+
+      category.list.innerHTML = category.rentals.map(rental => {
+        const items = itemsMap.get(rental.log_id) || [];
+        const storageNames = items.filter(item => item.item_type === 'storage').map(item => item.storage_name || '倉庫').join(', ');
+        return `
+          <div class="rental-item">
+            <div class="rental-info">
+              <strong>${rental.practice_room_name || '練習場'}</strong> (${rental.org_name})<br>
+              ${rental.name} (${rental.student_id})<br>
+              貸出時刻: ${formatDate(rental.borrowed_at)}
+              ${storageNames ? `<br>倉庫: ${storageNames}` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  });
 }
 
 function renderStorageRentals(rentals, itemsMap) {

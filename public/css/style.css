@@ -191,6 +191,17 @@ h2 {
   margin-bottom: 20px;
 }
 
+.danger-card {
+  border: 2px solid #f56565;
+  background: #fff5f5;
+}
+
+.warning-text {
+  color: #9b2c2c;
+  font-weight: 600;
+  margin-bottom: 15px;
+}
+
 .info-row {
   display: flex;
   padding: 12px 0;
@@ -387,6 +398,17 @@ h2 {
   color: white;
   transform: translateY(-3px);
   box-shadow: 0 6px 20px rgba(0, 30, 98, 0.3);
+}
+
+.org-button.selected {
+  background: #001E62;
+  color: white;
+  border-color: var(--accent-yellow);
+  box-shadow: 0 0 0 3px rgba(241, 196, 0, 0.35);
+}
+
+.org-button.selected .org-info {
+  color: white;
 }
 
 .org-button .org-name {

@@ -20,8 +20,10 @@ const {
   deleteOrganization,
   getAllPracticeRooms,
   getAllStorageRooms,
+  getAllPrintRooms,
   getCurrentResourceUsage,
-  importStudentsFromCSV
+  importStudentsFromCSV,
+  resetOrganizationsAndStudents
 } = require('./database');
 
 const app = express();
@@ -60,18 +62,21 @@ app.get('/api/student/:studentId', (req, res) => {
 // 鍵貸出
 app.post('/api/borrow', (req, res) => {
   try {
-    const { studentId, orgId, rentalType, roomNumber, practiceRoomId, storageIds } = req.body;
+    const { studentId, orgId, rentalType, roomNumber, practiceRoomId, printRoomId, storageIds } = req.body;
 
     if (!studentId || !orgId || !rentalType) {
       return res.status(400).json({ error: '必要な情報が不足しています' });
     }
 
-    // 部屋か練習場のどちらかが必須
+    // 部屋か練習場か印刷室のどちらかが必須
     if (rentalType === 'room' && !roomNumber) {
       return res.status(400).json({ error: '部屋番号が必要です' });
     }
     if (rentalType === 'practice' && !practiceRoomId) {
       return res.status(400).json({ error: '練習場が必要です' });
+    }
+    if (rentalType === 'print_room' && !printRoomId) {
+      return res.status(400).json({ error: '印刷室が必要です' });
     }
 
     const result = borrowKey(
@@ -80,6 +85,7 @@ app.post('/api/borrow', (req, res) => {
       rentalType,
       roomNumber || null,
       practiceRoomId || null,
+      printRoomId || null,
       storageIds || []
     );
 
@@ -286,8 +292,7 @@ app.get('/api/organizations/members', (req, res) => {
         orgMap.get(row.org_id).members.push({
           studentId: row.student_id,
           name: row.name,
-          email: row.email,
-          role: row.role || '一般会員'
+          email: row.email
         });
       }
     });
@@ -392,6 +397,17 @@ app.get('/api/storage-rooms', (req, res) => {
   }
 });
 
+// 印刷室一覧
+app.get('/api/print-rooms', (req, res) => {
+  try {
+    const printRooms = getAllPrintRooms();
+    res.json(printRooms);
+  } catch (error) {
+    console.error('印刷室一覧取得エラー:', error);
+    res.status(500).json({ error: 'データ取得に失敗しました' });
+  }
+});
+
 // CSV一括登録
 app.post('/api/import-csv', upload.single('csvFile'), (req, res) => {
   try {
@@ -405,7 +421,7 @@ app.post('/api/import-csv', upload.single('csvFile'), (req, res) => {
     fs.createReadStream(filePath)
       .pipe(csvParser())
       .on('data', (row) => {
-        // CSVの列名に対応: student_id, name, email, org_id, role
+        // CSVの列名に対応: student_id, name, email, org_id
         students.push({
           student_id: row.student_id || row['学籍番号'],
           name: row.name || row['氏名'],
@@ -447,8 +463,24 @@ app.post('/api/import-csv', upload.single('csvFile'), (req, res) => {
   }
 });
 
+// 団体・学生データ全削除
+app.post('/api/reset-data', (req, res) => {
+  try {
+    const confirmed = req.body && (req.body.confirm === true || req.body.confirm === 'true');
+    if (!confirmed) {
+      return res.status(400).json({ error: '削除するには確認が必要です' });
+    }
+
+    resetOrganizationsAndStudents();
+    res.json({ success: true, message: '団体と学生のデータを削除しました' });
+  } catch (error) {
+    console.error('データリセットエラー:', error);
+    res.status(500).json({ error: 'データの削除に失敗しました' });
+  }
+});
+
 // サーバー起動
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`鍵貸し出しシステムがポート${PORT}で起動しました`);
   console.log(`ユーザー画面: http://localhost:${PORT}`);
   console.log(`管理者画面: http://localhost:${PORT}/admin.html`);

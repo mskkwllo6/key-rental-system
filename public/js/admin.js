@@ -19,6 +19,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (orgCsvUploadButton) {
     orgCsvUploadButton.addEventListener('click', handleOrgCsvUpload);
   }
+  const resetDataButton = document.getElementById('resetDataButton');
+  if (resetDataButton) {
+    resetDataButton.addEventListener('click', handleResetData);
+  }
   document.getElementById('addOrgForm').addEventListener('submit', handleAddOrganization);
   document.getElementById('cancelEditButton').addEventListener('click', resetOrgForm);
   document.getElementById('refreshCurrentButton').addEventListener('click', loadCurrentRentals);
@@ -171,6 +175,46 @@ async function handleOrgCsvUpload() {
   } catch (error) {
     console.error('団体CSVアップロードエラー:', error);
     alert('サーバーとの通信に失敗しました');
+  }
+}
+
+// 団体・学生データ全削除
+async function handleResetData() {
+  if (!confirm('団体と学生のデータを全て削除します。本当によろしいですか？')) {
+    return;
+  }
+
+  const resultDiv = document.getElementById('resetResult');
+  try {
+    const response = await fetch('/api/reset-data', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ confirm: true })
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      resultDiv.className = 'upload-result success-message';
+      resultDiv.textContent = data.message || 'データを削除しました';
+      loadOrganizations();
+      loadCurrentRentals();
+      loadHistory();
+    } else {
+      resultDiv.className = 'upload-result error-message';
+      resultDiv.textContent = data.error || 'データの削除に失敗しました';
+    }
+  } catch (error) {
+    console.error('データリセットエラー:', error);
+    resultDiv.className = 'upload-result error-message';
+    resultDiv.textContent = 'サーバーとの通信に失敗しました';
+  } finally {
+    resultDiv.classList.remove('hidden');
+    setTimeout(() => {
+      resultDiv.classList.add('hidden');
+    }, 5000);
   }
 }
 
@@ -327,18 +371,36 @@ async function loadCurrentRentals() {
       const items = await itemsResponse.json();
 
       // 個別返却ボタンを生成
-      let itemButtons = `<button class="btn btn-success btn-small" onclick="handleReturn(${rental.log_id})">全て返却</button><br>`;
+      let itemButtons = '';
+
+      // アイテムが2個以上の場合のみ「全て返却」ボタンを表示
+      if (items.length > 1) {
+        itemButtons = `<button class="btn btn-success btn-small" onclick="handleReturn(${rental.log_id})">全て返却</button><br>`;
+      }
+
       if (items.length > 0) {
         for (const item of items) {
-          const itemName = item.item_type === 'practice_room'
-            ? item.practice_room_name
-            : item.storage_name;
+          let itemName;
+          if (item.item_type === 'room') {
+            itemName = `部室 ${item.room_number}`;
+          } else if (item.item_type === 'practice_room') {
+            itemName = item.practice_room_name;
+          } else if (item.item_type === 'storage') {
+            itemName = item.storage_name;
+          } else {
+            itemName = 'アイテム';
+          }
+
+          const safeName = itemName.replace(/'/g, "\\'");
           itemButtons += `
-            <button class="btn btn-secondary btn-small" style="margin-top: 5px;" onclick="handleReturnItem(${item.item_id}, '${itemName}')">
-              ${itemName}返却
+            <button class="btn btn-secondary btn-small" style="margin-top: 5px;" onclick="handleReturnItem(${item.item_id}, '${safeName}')">
+              ${itemName}を返却
             </button>
           `;
         }
+      } else {
+        // アイテムが0個の場合（旧データ対応）
+        itemButtons = `<button class="btn btn-success btn-small" onclick="handleReturn(${rental.log_id})">全て返却</button>`;
       }
 
       rows.push(`

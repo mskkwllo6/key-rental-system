@@ -50,8 +50,7 @@ function handleSearch() {
     }
     return org.members.some(member =>
       member.name.toLowerCase().includes(keyword) ||
-      member.studentId.toLowerCase().includes(keyword) ||
-      (member.role && member.role.toLowerCase().includes(keyword))
+      member.studentId.toLowerCase().includes(keyword)
     );
   });
 
@@ -79,7 +78,6 @@ function renderOrganizations(data) {
               <span class="member-id">${member.studentId}</span>
             </div>
             <div class="member-meta">
-              <span class="member-role">${member.role || '一般会員'}</span>
               ${member.email ? `<span class="member-email">${member.email}</span>` : ''}
             </div>
           </div>
