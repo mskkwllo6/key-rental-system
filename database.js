@@ -586,6 +586,34 @@ function getAllRentalHistory(limit = 100) {
   return stmt.all(limit);
 }
 
+function getRentalLogsForExport() {
+  const stmt = db.prepare(`
+    SELECT
+      r.log_id,
+      r.student_id,
+      s.name AS student_name,
+      r.org_id,
+      o.org_name,
+      r.rental_type,
+      r.room_number,
+      r.practice_room_id,
+      pr.room_name AS practice_room_name,
+      r.print_room_id,
+      ptr.print_room_name,
+      r.storage_ids,
+      r.borrowed_at,
+      r.returned_at,
+      r.status
+    FROM rental_logs r
+    LEFT JOIN students s ON r.student_id = s.student_id
+    LEFT JOIN organizations o ON r.org_id = o.org_id
+    LEFT JOIN practice_rooms pr ON r.practice_room_id = pr.room_id
+    LEFT JOIN print_rooms ptr ON r.print_room_id = ptr.print_room_id
+    ORDER BY r.borrowed_at DESC
+  `);
+  return stmt.all();
+}
+
 // 団体一覧取得
 function getAllOrganizations() {
   const stmt = db.prepare('SELECT * FROM organizations ORDER BY org_id');
@@ -910,6 +938,7 @@ module.exports = {
   getRentalItems,
   getCurrentRentals,
   getAllRentalHistory,
+  getRentalLogsForExport,
   getAllOrganizations,
   getOrganizationMembers,
   importOrganizationsFromCSV,

@@ -23,6 +23,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (resetDataButton) {
     resetDataButton.addEventListener('click', handleResetData);
   }
+  const downloadHistoryCsvButton = document.getElementById('downloadHistoryCsvButton');
+  if (downloadHistoryCsvButton) {
+    downloadHistoryCsvButton.addEventListener('click', handleDownloadHistoryCsv);
+  }
   document.getElementById('addOrgForm').addEventListener('submit', handleAddOrganization);
   document.getElementById('cancelEditButton').addEventListener('click', resetOrgForm);
   document.getElementById('refreshCurrentButton').addEventListener('click', loadCurrentRentals);
@@ -216,6 +220,11 @@ async function handleResetData() {
       resultDiv.classList.add('hidden');
     }, 5000);
   }
+}
+
+// 貸出履歴CSVダウンロード
+function handleDownloadHistoryCsv() {
+  window.location.href = '/api/rentals/export/csv';
 }
 
 // 団体追加・更新処理

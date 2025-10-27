@@ -151,7 +151,10 @@
       <!-- 貸出履歴タブ -->
       <section id="history" class="tab-content">
         <h2>貸出履歴</h2>
-        <button id="refreshHistoryButton" class="btn btn-secondary">更新</button>
+        <div class="button-group history-button-group">
+          <button id="refreshHistoryButton" class="btn btn-secondary" type="button">更新</button>
+          <button id="downloadHistoryCsvButton" class="btn btn-primary" type="button">CSVをダウンロード</button>
+        </div>
         <div id="historyTable" class="rentals-table">
           <p class="loading">読み込み中...</p>
         </div>
