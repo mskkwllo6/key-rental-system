@@ -658,6 +658,10 @@ h2 {
   margin-top: 20px;
 }
 
+.history-button-group {
+  justify-content: flex-start;
+}
+
 /* 結果表示 */
 .result-card {
   text-align: center;

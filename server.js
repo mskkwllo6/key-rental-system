@@ -23,6 +23,7 @@ const {
   getAllPrintRooms,
   getCurrentResourceUsage,
   importStudentsFromCSV,
+  getRentalLogsForExport,
   resetOrganizationsAndStudents
 } = require('./database');
 
@@ -479,9 +480,88 @@ app.post('/api/reset-data', (req, res) => {
   }
 });
 
+// 貸出履歴CSVエクスポート
+app.get('/api/rentals/export/csv', (req, res) => {
+  try {
+    const logs = getRentalLogsForExport();
+    const headers = [
+      { key: 'log_id', label: 'log_id' },
+      { key: 'student_id', label: 'student_id' },
+      { key: 'student_name', label: 'student_name' },
+      { key: 'org_id', label: 'org_id' },
+      { key: 'org_name', label: 'org_name' },
+      { key: 'rental_type', label: 'rental_type' },
+      { key: 'room_number', label: 'room_number' },
+      { key: 'practice_room_name', label: 'practice_room_name' },
+      { key: 'print_room_name', label: 'print_room_name' },
+      { key: 'storage_ids', label: 'storage_ids' },
+      { key: 'borrowed_at', label: 'borrowed_at' },
+      { key: 'returned_at', label: 'returned_at' },
+      { key: 'status', label: 'status' }
+    ];
+
+    const formatted = logs.map((log) => ({
+      log_id: log.log_id,
+      student_id: log.student_id,
+      student_name: log.student_name || '',
+      org_id: log.org_id,
+      org_name: log.org_name || '',
+      rental_type: log.rental_type,
+      room_number: log.room_number || '',
+      practice_room_name: log.practice_room_name || '',
+      print_room_name: log.print_room_name || '',
+      storage_ids: formatStorageIds(log.storage_ids),
+      borrowed_at: log.borrowed_at || '',
+      returned_at: log.returned_at || '',
+      status: log.status || ''
+    }));
+
+    const csv = convertToCsv(headers, formatted);
+    const filename = `rental_logs_${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.send(csv);
+  } catch (error) {
+    console.error('貸出履歴CSVエクスポートエラー:', error);
+    res.status(500).json({ error: 'CSVの生成に失敗しました' });
+  }
+});
+
 // サーバー起動
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`鍵貸し出しシステムがポート${PORT}で起動しました`);
   console.log(`ユーザー画面: http://localhost:${PORT}`);
   console.log(`管理者画面: http://localhost:${PORT}/admin.html`);
 });
+
+function formatStorageIds(storageIds) {
+  if (!storageIds) return '';
+  try {
+    const parsed = JSON.parse(storageIds);
+    if (Array.isArray(parsed)) {
+      return parsed.join(',');
+    }
+  } catch (error) {
+    // JSONパースに失敗した場合はそのまま返す
+  }
+  return storageIds;
+}
+
+function convertToCsv(headers, rows) {
+  const escapeCell = (value) => {
+    if (value === null || value === undefined) return '';
+    const stringValue = String(value);
+    if (/[",\n\r]/.test(stringValue)) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+  };
+
+  const headerLine = headers.map((h) => escapeCell(h.label)).join(',');
+  const lines = rows.map((row) =>
+    headers.map((h) => escapeCell(row[h.key])).join(',')
+  );
+
+  return [headerLine, ...lines].join('\n');
+}
